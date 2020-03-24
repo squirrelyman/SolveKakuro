@@ -6,10 +6,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="DrawBoard.fs" />
     <Content Include="Board1.txt" />
     <Compile Include="Program.fs" />
   </ItemGroup>
-
-  <ItemGroup />
 
 </Project>

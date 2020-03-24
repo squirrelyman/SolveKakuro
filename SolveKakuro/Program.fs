@@ -26,13 +26,10 @@ let rec isValidSolutionSoFar (eqns: Equation list) (solution: int option list) :
 [<EntryPoint>]
 let main argv =
     let board = File.ReadLines("../../../Board1.txt")
+    let readBoard r c = board |> Seq.tryItem(r) |> Option.map(Seq.tryItem(c)) |> Option.flatten
 
     let acrossNums = (board |> Seq.item(10)).Split(' ') |> Seq.map(Int32.Parse)
     let downNums = (board |> Seq.item(11)).Split(' ') |> Seq.map(Int32.Parse)
-
-    assert(Seq.sum acrossNums = Seq.sum downNums)
-
-    let readBoard r c = board |> Seq.tryItem(r) |> Option.map(Seq.tryItem(c)) |> Option.flatten
 
     let vars: (int*int) list = [
         let acrossEnum = acrossNums.GetEnumerator()
@@ -64,71 +61,6 @@ let main argv =
                     yield (downEnum.Current, cellSeq)
     ]
 
-    let output = [
-        let acrossEnum = acrossNums.GetEnumerator()
-        let downEnum = downNums.GetEnumerator()
-        yield
-            """
-            <style>
-            table, th, td {
-              border: 1px solid black;
-              margin: 0px;
-              padding: 0px;
-              border-spacing: 0px;
-            }
-            td {
-              width: 30px;
-              height: 40px;
-            }
-            .filled {
-              background-color: black;
-            }
-            .across-total {
-              vertical-align: top;
-              text-align: right;
-              color: white;
-            }
-            .down-total {
-              vertical-align: bottom;
-              text-align: left;
-              color: white;
-            }
-            .cell-var {
-              color: gray;
-            }
-            </style>
-            """
-
-        yield "<table>"
-        for r in 0..9 do
-            yield "<tr>"
-            for c in 0..9 do
-                match readBoard r c with
-                | Some '_' ->
-                    let cellVar = sprintf "<div class=\"cell-var\">a%i</div>" (rcToVar r c)
-                    yield sprintf "<td bgcolor=\"white\" width=\"30\" height=\"40\" border=\"1px solid black\">%s</td>" cellVar
-                | Some '.' ->
-                    let acrossDiv =
-                        match board |> Seq.item(r) |> Seq.tryItem(c+1) with
-                        | Some('_') ->
-                            acrossEnum.MoveNext() |> ignore
-                            let n = acrossEnum.Current
-                            sprintf "<div class=\"across-total\">%i</div>" n
-                        | _ -> ""
-                    let downDiv =
-                        match board |> Seq.tryItem(r+1) |> Option.map(Seq.item(c)) with
-                        | Some('_') ->
-                            downEnum.MoveNext() |> ignore
-                            let n = downEnum.Current
-                            sprintf "<div class=\"down-total\">%i</div>" n
-                        | _ -> ""
-                    yield sprintf "<td class=\"filled\">%s%s</td>" acrossDiv downDiv
-                | _ -> ()
-            yield "</tr>"
-        yield "</table>"
-        yield sprintf "%i = %i" (Seq.sum acrossNums) (Seq.sum downNums)
-    ]
-
     let nextPotentialNumbers (soln: int option list) =
         [1..9] |> List.where(fun i ->
             let possibleSoln = [
@@ -145,15 +77,13 @@ let main argv =
         else 
             nextPotentialNumbers partialSoln
             |> List.map(fun x -> (Some x::partialSoln))
-            |> List.map(fun x ->
-                //printfn "%A" x
-                x
-            ) |> List.collect(getSolutions)
+            |> List.collect(getSolutions)
 
-    printfn "%A" (getSolutions [])
+    let soln = Seq.exactlyOne (getSolutions [])
+    printfn "%A" soln
     
     let outputFile = Path.Combine(Directory.GetCurrentDirectory(), "output.html")
+    let output = DrawBoard.DrawBoard acrossNums downNums (soln |> Seq.map(Option.get >> sprintf "%i")) readBoard
     File.WriteAllLines(outputFile, output)
     ignore <| System.Diagnostics.Process.Start(@"cmd.exe ", @"/c " + outputFile)
-    printfn"</table>"
     0 // return an integer exit code
