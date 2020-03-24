@@ -5,92 +5,20 @@ open System.IO
 
 type Equation = int * int list
 
-let rec permutations (myLists: int list list): int list list =
-    match myLists with
-    | [] -> failwith ""
-    | [x] -> x |> List.map(fun y -> [y])
-    | h::t -> List.allPairs h (permutations t) |> List.map(fun (x, y) -> x::y)
+let minTotalPossible n = n * (n+1) / 2
+let maxTotalPossible n = n * (19 - n) / 2
 
-let isSolution (eqn: Equation) (vals: int list) =
-    let sum, vars = eqn
-    (vals |> Seq.length) = (vals |> Seq.distinct |> Seq.length)
-    && (Seq.length vars) = (vals |> Seq.length)
-    && (Seq.sum vals) = sum
-
-let isFullSolution (eqns: Equation list) (solution: int list) =
+let isValidSolutionSoFar (eqns: Equation list) (solution: int option list) =
     eqns
-    |> Seq.map(fun eqn ->
-        let _, vars = eqn
+    |> Seq.map(fun (targetSum, vars) ->
         let vals = vars |> List.map(fun i -> solution.[i])
-        isSolution eqn vals
+        let actualSum = vals |> List.map(Option.defaultValue 0) |> List.sum
+
+        let noRepeats = (vals |> Seq.where(Option.isSome) |> Seq.distinct |> Seq.length) = (vals |> Seq.where(Option.isSome) |> Seq.length)
+        let numEmpty = vals |> Seq.where(Option.isNone) |> Seq.length
+
+        noRepeats && actualSum <= targetSum - (minTotalPossible numEmpty) && actualSum >= targetSum - (maxTotalPossible numEmpty)
     ) |> Seq.reduce(fun x y -> x && y)
-
-let isSolutionMultiple (eqns: Equation list) (vals: int list list) =
-    Seq.zip eqns vals |> Seq.map(fun(eqn, vals) -> isSolution eqn vals) |> Seq.reduce(fun x y -> x && y)
-
-let pruneSolutions (eqns: Equation list) (solutions: int list list) =
-    [0..Seq.length solutions-1]
-    |> List.map(fun var ->
-        let relevantEqns = eqns |> List.filter(fun (_, vars) -> List.contains(var) vars)
-        let relevantVars = relevantEqns |> List.collect(fun (_, vars) -> vars) |> List.distinct 
-        let possibleValues = relevantVars |> List.map(fun i -> solutions.[i]) |> permutations
-        let possibleSolutions = possibleValues |> List.filter(fun possiblePermutation ->
-            let mockFullSolution =
-                [0..Seq.length solutions - 1] |> List.map(fun i ->
-                    match List.tryFindIndex(fun x -> i = x) relevantVars with
-                    | Some x -> possiblePermutation.[x]
-                    | _ -> 0
-            )
-            isFullSolution relevantEqns mockFullSolution
-        )
-        (*let sum, vars = relevantEqn.[0]
-        let possibleSolutions = vars |> List.map(fun i -> solutions.[i]) |> permutations
-        
-        let possibleSolutions = possibleSolutions |> List.filter(isSolution relevantEqn)*)
-        let varIndex = List.findIndex(fun x -> x = var) relevantVars
-        possibleSolutions |> List.map(fun l -> l.[varIndex]) |> List.distinct
-    )
-
-let pruneSolutions1 (eqns: Equation list) (solutions: int list list) =
-    [0..Seq.length solutions-1]
-    |> List.map(fun var ->
-        let relevantEqns = eqns |> List.filter(fun (_, vars) -> List.contains(var) vars)
-        let relevantEqns = relevantEqns |> List.take(1)
-        let relevantVars = relevantEqns |> List.collect(fun (_, vars) -> vars) |> List.distinct 
-        let possibleValues = relevantVars |> List.map(fun i -> solutions.[i]) |> permutations
-        let possibleSolutions = possibleValues |> List.filter(fun possiblePermutation ->
-            let mockFullSolution =
-                [0..Seq.length solutions - 1] |> List.map(fun i ->
-                    match List.tryFindIndex(fun x -> i = x) relevantVars with
-                    | Some x -> possiblePermutation.[x]
-                    | _ -> 0
-            )
-            isFullSolution relevantEqns mockFullSolution
-        )
-        (*let sum, vars = relevantEqn.[0]
-        let possibleSolutions = vars |> List.map(fun i -> solutions.[i]) |> permutations
-        
-        let possibleSolutions = possibleSolutions |> List.filter(isSolution relevantEqn)*)
-        let varIndex = List.findIndex(fun x -> x = var) relevantVars
-        possibleSolutions |> List.map(fun l -> l.[varIndex]) |> List.distinct
-    )
-
-
-let potentialSolutions (eqn: Equation) =
-    let sum, vars = eqn
-    let nVars = Seq.length vars
-
-    let rec combinations firstVal numsNeeded : int list seq =
-        match numsNeeded with
-        | 1 -> [firstVal..9] |> Seq.map(fun x -> [x])
-        | n -> 
-            [firstVal..9]
-            |> Seq.collect(fun (x: int) ->
-                combinations (x+1) (n-1)
-                |> Seq.map(fun y -> x::y)
-            )
-        
-    combinations 1 nVars |> Seq.filter(fun combo -> Seq.sum combo = sum)
 
 [<EntryPoint>]
 let main argv =
@@ -132,9 +60,6 @@ let main argv =
                     let cellSeq = [r+1..9] |> List.takeWhile(fun i -> readBoard i c = Some '_') |> List.map(fun i -> rcToVar i c)
                     yield (downEnum.Current, cellSeq)
     ]
-
-    let solutions = vars |> List.map(fun _ -> [1..9]) |> pruneSolutions1 eqns
-    let solutions = solutions |> pruneSolutions eqns
 
     let output = [
         let acrossEnum = acrossNums.GetEnumerator()
@@ -199,18 +124,49 @@ let main argv =
             yield "</tr>"
         yield "</table>"
         yield sprintf "%i = %i" (Seq.sum acrossNums) (Seq.sum downNums)
-
-        for eqn in eqns do
-            let (total, vars) = eqn
-            let str = vars |> Seq.map(sprintf "a%i") |> Seq.reduce (fun x y -> x + " + " + y)
-            yield sprintf "<p>%i = %s Possibilities %A</p>" total str (potentialSolutions eqn)
-
-        yield "<p>Solutions</p>"
-        yield! solutions |> Seq.mapi(fun i varVals ->
-            let valsStr = varVals |> Seq.map(sprintf "%i") |> Seq.reduce (fun x y -> x + " " + y)
-            sprintf "<p>a%i: %s</p>" i valsStr
-        )
     ]
+
+    let nextPotentialNumbers (soln: int option list) =
+        [1..9] |> List.where(fun i ->
+            let possibleSoln = [
+                yield! soln
+                yield Some i
+                yield! Seq.replicate (Seq.length vars - Seq.length soln - 1) None
+            ]
+            isValidSolutionSoFar eqns  possibleSoln
+        )
+        
+    let rec solve partialSoln =
+        nextPotentialNumbers (partialSoln |> List.rev)
+        |> Seq.iter(fun x ->
+            solve (Some x::partialSoln)
+            printfn "%A" (Some x::partialSoln)
+        )
+
+    //solve []
+
+    let nextPotentialNumbers (soln: int option list) =
+        [1..9] |> List.where(fun i ->
+            let possibleSoln = [
+                yield! Seq.replicate (Seq.length vars - Seq.length soln - 1) None
+                yield Some i
+                yield! soln
+            ]
+            isValidSolutionSoFar eqns  possibleSoln
+        )
+
+    let rec getSolutions partialSoln =
+        if Seq.length partialSoln = Seq.length vars
+        then [partialSoln]
+        else 
+            nextPotentialNumbers partialSoln
+            |> List.map(fun x -> (Some x::partialSoln))
+            |> List.map(fun x ->
+                //printfn "%A" x
+                x
+            ) |> List.collect(getSolutions)
+
+    printfn "%A" (getSolutions [])
     
     let outputFile = Path.Combine(Directory.GetCurrentDirectory(), "output.html")
     File.WriteAllLines(outputFile, output)
