@@ -8,17 +8,20 @@ type Equation = int * int list
 let minTotalPossible n = n * (n+1) / 2
 let maxTotalPossible n = n * (19 - n) / 2
 
-let isValidSolutionSoFar (eqns: Equation list) (solution: int option list) =
-    eqns
-    |> Seq.map(fun (targetSum, vars) ->
+let rec isValidSolutionSoFar (eqns: Equation list) (solution: int option list) : bool =
+    match eqns with
+    | [] -> true
+    | (targetSum, vars)::tail ->
         let vals = vars |> List.map(fun i -> solution.[i])
         let actualSum = vals |> List.map(Option.defaultValue 0) |> List.sum
-
+    
         let noRepeats = (vals |> Seq.where(Option.isSome) |> Seq.distinct |> Seq.length) = (vals |> Seq.where(Option.isSome) |> Seq.length)
         let numEmpty = vals |> Seq.where(Option.isNone) |> Seq.length
-
-        noRepeats && actualSum <= targetSum - (minTotalPossible numEmpty) && actualSum >= targetSum - (maxTotalPossible numEmpty)
-    ) |> Seq.reduce(fun x y -> x && y)
+    
+        noRepeats
+        && actualSum <= targetSum - (minTotalPossible numEmpty)
+        && actualSum >= targetSum - (maxTotalPossible numEmpty)
+        && isValidSolutionSoFar tail solution
 
 [<EntryPoint>]
 let main argv =
@@ -125,25 +128,6 @@ let main argv =
         yield "</table>"
         yield sprintf "%i = %i" (Seq.sum acrossNums) (Seq.sum downNums)
     ]
-
-    let nextPotentialNumbers (soln: int option list) =
-        [1..9] |> List.where(fun i ->
-            let possibleSoln = [
-                yield! soln
-                yield Some i
-                yield! Seq.replicate (Seq.length vars - Seq.length soln - 1) None
-            ]
-            isValidSolutionSoFar eqns  possibleSoln
-        )
-        
-    let rec solve partialSoln =
-        nextPotentialNumbers (partialSoln |> List.rev)
-        |> Seq.iter(fun x ->
-            solve (Some x::partialSoln)
-            printfn "%A" (Some x::partialSoln)
-        )
-
-    //solve []
 
     let nextPotentialNumbers (soln: int option list) =
         [1..9] |> List.where(fun i ->
