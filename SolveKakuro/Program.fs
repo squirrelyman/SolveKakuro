@@ -59,6 +59,7 @@ let main argv =
                     yield (downEnum.Current, cellSeq)
     ]
 
+    //runs faster with equations reversed
     let eqns = List.rev eqns
 
     let rec getSolutions partialSoln =
@@ -70,11 +71,11 @@ let main argv =
             |> List.where(List.rev >> isValidSolutionSoFar eqns)
             |> List.collect(getSolutions)
 
-    let soln = Seq.exactlyOne (getSolutions [])
+    let soln = getSolutions [] |> Seq.exactlyOne |> List.rev
     printfn "%A" soln
     
     let outputFile = Path.Combine(Directory.GetCurrentDirectory(), "output.html")
-    let output = DrawBoard.DrawBoard board (soln |> List.rev |> Seq.map(sprintf "%i"))
+    let output = DrawBoard.DrawBoard board (soln |> Seq.map(sprintf "%i"))
     File.WriteAllLines(outputFile, output)
     ignore <| System.Diagnostics.Process.Start(@"cmd.exe ", @"/c " + outputFile)
     0 // return an integer exit code
