@@ -57,16 +57,16 @@ let main argv =
         yield! Seq.zip board.downSums downRuns
     ]
 
-    //runs faster with equations reversed
-    let eqns = List.rev eqns
-
     let rec getSolutions partialSoln =
         if Seq.length partialSoln = Seq.length vars
         then [partialSoln]
         else 
+            let nextVarIndex = Seq.length partialSoln
+            let relevantEqns = eqns |> List.filter(fun(sum, vars) -> vars |> List.exists(fun varIndex -> varIndex = nextVarIndex))
+
             [1..9]
             |> List.map(fun i -> (i::partialSoln))
-            |> List.where(List.rev >> isValidSolutionSoFar eqns)
+            |> List.where(List.rev >> isValidSolutionSoFar relevantEqns)
             |> List.collect(getSolutions)
 
     let soln = getSolutions [] |> Seq.exactlyOne |> List.rev
