@@ -2,21 +2,22 @@
 
 open System
 open System.IO
+open ReadBoard
 
 type Equation = int * int list
 
 let minTotalPossible n = n * (n+1) / 2
 let maxTotalPossible n = n * (19 - n) / 2
 
-let rec isValidSolutionSoFar (eqns: Equation list) (solution: int option list) : bool =
+let rec isValidSolutionSoFar (eqns: Equation list) (solution: int list) : bool =
     match eqns with
     | [] -> true
     | (targetSum, vars)::tail ->
-        let vals = vars |> List.map(fun i -> solution.[i])
-        let actualSum = vals |> List.map(Option.defaultValue 0) |> List.sum
-    
-        let noRepeats = (vals |> Seq.where(Option.isSome) |> Seq.distinct |> Seq.length) = (vals |> Seq.where(Option.isSome) |> Seq.length)
-        let numEmpty = vals |> Seq.where(Option.isNone) |> Seq.length
+        let vals = vars |> List.choose(fun i -> List.tryItem(i) solution)
+        let actualSum = vals |> List.sum
+        
+        let noRepeats = (vals |> List.distinct |> List.length) = vals.Length
+        let numEmpty = vars.Length - vals.Length
     
         noRepeats
         && actualSum <= targetSum - (minTotalPossible numEmpty)
@@ -25,65 +26,55 @@ let rec isValidSolutionSoFar (eqns: Equation list) (solution: int option list) :
 
 [<EntryPoint>]
 let main argv =
-    let board = File.ReadLines("../../../Board1.txt")
-    let readBoard r c = board |> Seq.tryItem(r) |> Option.map(Seq.tryItem(c)) |> Option.flatten
-
-    let acrossNums = (board |> Seq.item(10)).Split(' ') |> Seq.map(Int32.Parse)
-    let downNums = (board |> Seq.item(11)).Split(' ') |> Seq.map(Int32.Parse)
+    let board = ReadBoard("../../../Board1.txt")
 
     let vars: (int*int) list = [
-        let acrossEnum = acrossNums.GetEnumerator()
-        let downEnum = downNums.GetEnumerator()
+        let acrossEnum = board.acrossSums.GetEnumerator()
+        let downEnum = board.downSums.GetEnumerator()
         for r in 0..9 do
             for c in 0..9 do
-                match readBoard r c with
-                | Some '_' -> yield (r, c)
-                | _ -> ()
+                match board.cells.[r].[c] with
+                | White -> yield (r, c)
+                | Black -> ()
     ]
 
     let rcToVar r c = vars |> Seq.findIndex(fun (_r, _c) -> r = _r && c = _c)
+    let tryCell r c = board.cells |> List.tryItem(r) |> Option.map(List.tryItem(c)) |> Option.flatten
 
     let eqns: Equation list = [
-        let acrossEnum = acrossNums.GetEnumerator()
-        let downEnum = downNums.GetEnumerator()
+        let acrossEnum = board.acrossSums.GetEnumerator()
+        let downEnum = board.downSums.GetEnumerator()
         for r in 0..9 do
             for c in 0..9 do
-                let current = readBoard r c
-                let right = readBoard r (c+1)
-                let down = readBoard (r+1) c
-                if current = Some '.' && right = Some '_' then
+                let current = tryCell r c
+                let right = tryCell r (c+1)
+                let down = tryCell (r+1) c
+                if current = Some Black && right = Some White then
                     acrossEnum.MoveNext() |> ignore
-                    let cellSeq = [c+1..9] |> List.takeWhile(fun i -> readBoard r i = Some '_') |> List.map(fun i -> rcToVar r i)
+                    let cellSeq = [c+1..9] |> List.takeWhile(fun i -> tryCell r i = Some White) |> List.map(fun i -> rcToVar r i)
                     yield (acrossEnum.Current, cellSeq)
-                if current = Some '.' && down = Some '_' then
+                if current = Some Black && down = Some White then
                     downEnum.MoveNext() |> ignore
-                    let cellSeq = [r+1..9] |> List.takeWhile(fun i -> readBoard i c = Some '_') |> List.map(fun i -> rcToVar i c)
+                    let cellSeq = [r+1..9] |> List.takeWhile(fun i -> tryCell i c = Some White) |> List.map(fun i -> rcToVar i c)
                     yield (downEnum.Current, cellSeq)
     ]
 
-    let nextPotentialNumbers (soln: int option list) =
-        [1..9] |> List.where(fun i ->
-            let possibleSoln = [
-                yield! Seq.replicate (Seq.length vars - Seq.length soln - 1) None
-                yield Some i
-                yield! soln
-            ]
-            isValidSolutionSoFar eqns  possibleSoln
-        )
+    let eqns = List.rev eqns
 
     let rec getSolutions partialSoln =
         if Seq.length partialSoln = Seq.length vars
         then [partialSoln]
         else 
-            nextPotentialNumbers partialSoln
-            |> List.map(fun x -> (Some x::partialSoln))
+            [1..9]
+            |> List.map(fun i -> (i::partialSoln))
+            |> List.where(List.rev >> isValidSolutionSoFar eqns)
             |> List.collect(getSolutions)
 
     let soln = Seq.exactlyOne (getSolutions [])
     printfn "%A" soln
     
     let outputFile = Path.Combine(Directory.GetCurrentDirectory(), "output.html")
-    let output = DrawBoard.DrawBoard acrossNums downNums (soln |> Seq.map(Option.get >> sprintf "%i")) readBoard
+    let output = DrawBoard.DrawBoard board (soln |> List.rev |> Seq.map(sprintf "%i"))
     File.WriteAllLines(outputFile, output)
     ignore <| System.Diagnostics.Process.Start(@"cmd.exe ", @"/c " + outputFile)
     0 // return an integer exit code

@@ -1,9 +1,12 @@
 ﻿module DrawBoard
+open ReadBoard
 
-let DrawBoard (acrossNums: int seq) (downNums: int seq) (contents: string seq) (readBoard: int -> int -> char option) = 
+let DrawBoard (board: Board) (contents: string seq) = 
+    let tryCell r c = board.cells |> List.tryItem(r) |> Option.map(List.tryItem(c)) |> Option.flatten
+
     [
-        let acrossEnum = acrossNums.GetEnumerator()
-        let downEnum = downNums.GetEnumerator()
+        let acrossEnum = board.acrossSums.GetEnumerator()
+        let downEnum = board.downSums.GetEnumerator()
         let contentsEnum = contents.GetEnumerator()
         yield
             """
@@ -42,28 +45,27 @@ let DrawBoard (acrossNums: int seq) (downNums: int seq) (contents: string seq) (
         for r in 0..9 do
             yield "<tr>"
             for c in 0..9 do
-                match readBoard r c with
-                | Some '_' ->
+                match board.cells.[r].[c] with
+                | White ->
                     contentsEnum.MoveNext() |> ignore
                     let cellVar = sprintf "<div class=\"cell-var\">%s</div>" contentsEnum.Current
                     yield sprintf "<td bgcolor=\"white\" width=\"30\" height=\"40\" border=\"1px solid black\">%s</td>" cellVar
-                | Some '.' ->
+                | Black ->
                     let acrossDiv =
-                        match readBoard r (c+1) with
-                        | Some('_') ->
+                        match tryCell r (c+1) with
+                        | Some White ->
                             acrossEnum.MoveNext() |> ignore
                             let n = acrossEnum.Current
                             sprintf "<div class=\"across-total\">%i</div>" n
                         | _ -> ""
                     let downDiv =
-                        match readBoard (r+1) c with
-                        | Some('_') ->
+                        match tryCell (r+1) c with
+                        | Some White ->
                             downEnum.MoveNext() |> ignore
                             let n = downEnum.Current
                             sprintf "<div class=\"down-total\">%i</div>" n
                         | _ -> ""
                     yield sprintf "<td class=\"filled\">%s%s</td>" acrossDiv downDiv
-                | _ -> ()
             yield "</tr>"
         yield "</table>"
     ]
