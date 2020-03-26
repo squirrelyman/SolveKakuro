@@ -28,33 +28,38 @@ let rec isValidSolutionSoFar (eqns: Equation list) (solution: int list) : bool =
 let main argv =
     let board = ReadBoard("../../../Board1.txt")
 
-    let vars = [
-        for r in 0..9 do
-            for c in 0..9 do
-                match board.cells.[r].[c] with
-                | White -> yield (r, c)
-                | Black -> ()
-    ]
+    let vars =
+        Seq.allPairs [0..9] [0..9]
+        |> Seq.filter(fun (r, c) -> board.cells.[r].[c] = White)
 
     let rcToVar r c = vars |> Seq.findIndex(fun (_r, _c) -> r = _r && c = _c)
     let tryCell r c = board.cells |> List.tryItem(r) |> Option.map(List.tryItem(c)) |> Option.flatten
 
-    let eqns: Equation list = [
-        let acrossEnum = board.acrossSums.GetEnumerator()
-        let downEnum = board.downSums.GetEnumerator()
-        for r in 0..9 do
-            for c in 0..9 do
-                let current = tryCell r c
-                let right = tryCell r (c+1)
-                let down = tryCell (r+1) c
-                if current = Some Black && right = Some White then
-                    acrossEnum.MoveNext() |> ignore
-                    let cellSeq = [c+1..9] |> List.takeWhile(fun i -> tryCell r i = Some White) |> List.map(fun i -> rcToVar r i)
-                    yield (acrossEnum.Current, cellSeq)
-                if current = Some Black && down = Some White then
-                    downEnum.MoveNext() |> ignore
-                    let cellSeq = [r+1..9] |> List.takeWhile(fun i -> tryCell i c = Some White) |> List.map(fun i -> rcToVar i c)
-                    yield (downEnum.Current, cellSeq)
+    let acrossRuns =
+        Seq.allPairs [0..9] [0..9]
+        |> Seq.filter(fun(r, c) -> 
+                tryCell r c = Some Black
+                && tryCell r (c+1) = Some White
+        )
+        |> Seq.map(fun (r, c) ->
+            [c+1..9]
+            |> List.takeWhile(fun i -> tryCell r i = Some White)
+            |> List.map(fun i -> rcToVar r i))
+
+    let downRuns =
+        Seq.allPairs [0..9] [0..9]
+        |> Seq.filter(fun(r, c) -> 
+                tryCell r c = Some Black
+                && tryCell (r+1) c = Some White
+        )
+        |> Seq.map(fun (r, c) ->
+            [r+1..9]
+            |> List.takeWhile(fun i -> tryCell i c = Some White)
+            |> List.map(fun i -> rcToVar i c))
+
+    let eqns = [
+        yield! Seq.zip board.acrossSums acrossRuns
+        yield! Seq.zip board.downSums downRuns
     ]
 
     //runs faster with equations reversed
