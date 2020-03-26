@@ -28,9 +28,7 @@ let rec isValidSolutionSoFar (eqns: Equation list) (solution: int list) : bool =
 let main argv =
     let board = ReadBoard("../../../Board1.txt")
 
-    let vars: (int*int) list = [
-        let acrossEnum = board.acrossSums.GetEnumerator()
-        let downEnum = board.downSums.GetEnumerator()
+    let vars = [
         for r in 0..9 do
             for c in 0..9 do
                 match board.cells.[r].[c] with
