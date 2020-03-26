@@ -4,6 +4,7 @@ open System
 open System.IO
 open ReadBoard
 
+//Equation(sum, variable indices)
 type Equation = int * int list
 
 let minTotalPossible n = n * (n+1) / 2
@@ -36,24 +37,18 @@ let main argv =
     let tryCell r c = board.cells |> List.tryItem(r) |> Option.map(List.tryItem(c)) |> Option.flatten
 
     let acrossRuns =
-        Seq.allPairs [0..9] [0..9]
-        |> Seq.filter(fun(r, c) -> 
-                tryCell r c = Some Black
-                && tryCell r (c+1) = Some White
-        )
+        vars
+        |> Seq.filter(fun(r, c) -> tryCell r (c-1) = Some Black)
         |> Seq.map(fun (r, c) ->
-            [c+1..9]
+            [c..9]
             |> List.takeWhile(fun i -> tryCell r i = Some White)
             |> List.map(fun i -> rcToVar r i))
 
     let downRuns =
-        Seq.allPairs [0..9] [0..9]
-        |> Seq.filter(fun(r, c) -> 
-                tryCell r c = Some Black
-                && tryCell (r+1) c = Some White
-        )
+        vars
+        |> Seq.filter(fun(r, c) -> tryCell (r-1) c = Some Black)
         |> Seq.map(fun (r, c) ->
-            [r+1..9]
+            [r..9]
             |> List.takeWhile(fun i -> tryCell i c = Some White)
             |> List.map(fun i -> rcToVar i c))
 
